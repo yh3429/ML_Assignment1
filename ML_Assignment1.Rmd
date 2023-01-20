@@ -1,0 +1,84 @@
+---
+title: "ML_Assignment1"
+date: "2023-01-20"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Loading library
+
+```{r, message=FALSE}
+library(tidyverse)
+library(ggridges)
+```
+
+## Question 1:Construct a table providing summaries of the quantitative features of the dataset.
+
+```{r}
+bcdata = read_csv(file = "./data/Assignment1_bcdata.csv")
+bcdata = janitor::clean_names(bcdata)
+```
+```{r}
+summarized_df = bcdata %>% rename (mcp1 = mcp_1) %>%
+  select(-c(classification)) %>% 
+  summarise(across(everything(), list(mean=mean, median=median, min = min, max = max)))  %>% 
+   pivot_longer(age_mean:mcp1_max,
+                 names_to = "Type", 
+                 values_to = "Value") %>% 
+  separate(Type, c('Quantitative features', 'Summaries')) %>% 
+  pivot_wider (names_from = "Summaries", 
+  values_from = "Value") %>% 
+  
+knitr::kable (caption = "Summaries of the Quantitative Features", align = c ("c", "c"), digits = 2)
+
+summarized_df
+  
+```
+*Comments: The table is summaries of the quantitative features. And their units are as follows: Age (years), BMI (kg/m2), Glucose (mg/dL), Insulin (μU/mL), HOMA-IR (), Leptin (ng/mL),  Adiponectin (μg/mL),  Resistin (ng/mL),  MCP-1(pg/dL).*
+
+
+## Question 2:Recode BMI into the WHO-defined categories below
+
+```{r}
+Q2_df = bcdata %>% mutate(bmi_group = 
+                    case_when(bmi < 16.5 ~ 'Severely underweight',
+                              bmi < 18.5 ~ "Underweight",
+                              bmi <= 24.9 ~ "Normal weight",
+                              bmi <= 29.9 ~"Overweight",
+                              bmi <= 34.9 ~"Obesity class I",
+                              bmi <= 39.9 ~"Obesity class II",
+                              bmi >= 40~ "Obesity class III"))
+  Q2_df         
+```
+*Comments: The continuous variable `BMI` was transferred into a categorical variable `bmi_group` based on the WHO-defined categories.*
+
+
+## Question 3:Create a bar chart showing the proportion of breast cancer cases and controls within each BMI category.
+
+```{r}
+Q3_cases = Q2_df %>% group_by(bmi_group) %>% 
+  filter(classification==2) %>% 
+  summarize(count = n()) %>% 
+  mutate(cases_no = count) %>% select(!count)
+
+Q3_controls = Q2_df %>% group_by(bmi_group) %>% 
+  filter(classification==1) %>% 
+  summarize(count = n())  %>% 
+  mutate(controls_no = count) %>% select(!count)
+```
+
+```{r}
+Q3_total=full_join(Q3_cases,Q3_controls, by=c("bmi_group")) 
+ 
+Q3_total[is.na(Q3_total)] = 0
+
+Q3_total = Q3_total %>% mutate (total_no =cases_no + controls_no ) %>% 
+  mutate (cases_percent= (cases_no / total_no)*100,
+          controls_percent = (controls_no / total_no)*100)
+```
+
+```{r}
+bar_plot= 
+```
+
