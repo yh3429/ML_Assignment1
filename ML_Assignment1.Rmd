@@ -156,3 +156,5 @@ fit_linear %>%
   
 ```
 *Comments: With all the other variables held constant, if 1-unit changes in age, the beta estimate is -0.054 and its related 95% confidence interval from -0.156 to 0.048.*
+
+ok
