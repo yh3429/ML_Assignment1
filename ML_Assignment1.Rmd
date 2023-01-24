@@ -11,9 +11,15 @@ editor_options:
 ```{r, message=FALSE}
 library(tidyverse)
 library(ggridges)
+library(lmtest)
+library(knitr)
+library(kableExtra)
+
+set.seed(1)
 ```
 
-## Question 1:Construct a table providing summaries of the quantitative features of the dataset.
+## Question 1:
+#### Construct a table providing summaries of the quantitative features of the dataset.
 
 ```{r}
 bcdata = read_csv(file = "./data/Assignment1_bcdata.csv")
@@ -29,8 +35,9 @@ summarized_df = bcdata %>% rename (mcp1 = mcp_1) %>%
   separate(Type, c('Quantitative features', 'Summaries')) %>% 
   pivot_wider (names_from = "Summaries", 
   values_from = "Value") %>% 
-  
-knitr::kable (caption = "Summaries of the Quantitative Features", align = c ("c", "c"), digits = 2)
+knitr::kable (caption = "Summaries of the Quantitative Features", align = c ("c", "c"), digits = 2) %>%  kable_paper("striped", full_width = F) %>% 
+  column_spec(1, bold = T)
+
 
 summarized_df
   
@@ -38,7 +45,8 @@ summarized_df
 *Comments: The table is summaries of the quantitative features. And their units are as follows: Age (years), BMI (kg/m2), Glucose (mg/dL), Insulin (μU/mL), HOMA-IR (), Leptin (ng/mL),  Adiponectin (μg/mL),  Resistin (ng/mL),  MCP-1(pg/dL).*
 
 
-## Question 2:Recode BMI into the WHO-defined categories below
+## Question 2:
+#### Recode BMI into the WHO-defined categories below
 
 ```{r}
 Q2_df = bcdata %>% mutate(bmi_group = 
@@ -51,10 +59,11 @@ Q2_df = bcdata %>% mutate(bmi_group =
                               bmi >= 40~ "Obesity class III"))
   Q2_df         
 ```
-*Comments: The continuous variable `BMI` was transferred into a categorical variable `bmi_group` based on the WHO-defined categories.*
+*Comments: The continuous variable `BMI` was transferred into a categorical variable `bmi_group` based on the WHO-defined categories. And there were only 5 categories*
 
 
-## Question 3:Create a bar chart showing the proportion of breast cancer cases and controls within each BMI category.
+## Question 3:
+#### Create a bar chart showing the proportion of breast cancer cases and controls within each BMI category.
 
 ```{r}
 Q3_cases = Q2_df %>% group_by(bmi_group) %>% 
@@ -75,10 +84,75 @@ Q3_total[is.na(Q3_total)] = 0
 
 Q3_total = Q3_total %>% mutate (total_no =cases_no + controls_no ) %>% 
   mutate (cases_percent= (cases_no / total_no)*100,
-          controls_percent = (controls_no / total_no)*100)
+          controls_percent = (controls_no / total_no)*100) %>% 
+  select(bmi_group, cases_percent, controls_percent) %>% 
+  mutate(bmi_group = fct_relevel(bmi_group, c("Underweight", "Normal weight",
+                       "Overweight","Obesity class I","Obesity class II"))) %>% 
+   arrange(bmi_group) %>% 
+  pivot_longer(cases_percent:controls_percent,
+                 names_to= "Type",
+                 values_to = "Percent")
+
 ```
 
 ```{r}
-bar_plot= 
+
+bar_chart = Q3_total %>% ggplot(aes(x=bmi_group,y=Percent,fill=Type)) +
+  geom_bar(stat="identity", position = "dodge") +
+  scale_fill_brewer(palette = "Pastel2")+
+ geom_text(aes(label=sprintf("%0.2f", Percent)), position=position_dodge(width=0.9), vjust=-0.25, size=3) +
+  labs(title = "The proportion of breast cancer cases and controls within each BMI category", x = "BMI category", y = "The type of participants")
+
+bar_chart
 ```
 
+## Question 4:
+#### Construct a logistic regression model using breast cancer classification as the outcome and glucose, HOMA-IR, leptin, BMI (continuous) and age as the independent variables.
+
+```{r}
+bcdata_df = bcdata %>% mutate(classification = recode_factor(classification,
+                                                             "1"="0",
+                                                             "2"="1"))
+fit_logistic = 
+  glm(classification ~ glucose + homa + leptin + bmi + age, family=binomial(link="logit"), data = bcdata_df)
+```
+
+```{r}
+fit_logistic %>% 
+  broom::tidy() %>% 
+   mutate(Lower_CI = (estimate -1.96*std.error),
+         Upper_CI = (estimate +1.96*std.error)) %>% 
+  select(term, estimate,std.error, Lower_CI, Upper_CI, statistic, p.value) %>% 
+  kbl(caption     = "Effect of Selected Predictors on breat cancer classification"
+    , col.names   = c("Predictors", "Beta Estimate","SE", "Lower bound of 95% CI","Upper bound of 95% CI", "t-statistic", "p-value"),
+    digits= 2) %>%
+ kable_paper("striped", full_width = F) %>% 
+  column_spec(1, bold = T)
+ 
+```
+*Comments: With all the other variables held constant, if 1-unit changes in HOMA-IR, the beta estimate is 0.27 and its related 95% confidence interval from -0.06 to 0.61*
+
+
+## Question 5:
+#### Construct a linear regression model using insulin as the outcome and BMI (continuous), age, and glucose as the independent variables.
+
+```{r}
+fit_linear = lm (insulin ~ bmi + age + glucose, data = bcdata)
+```
+
+```{r}
+fit_linear %>% 
+   summary() %>%
+   broom::tidy() %>% 
+  mutate(Lower_CI = (estimate -1.96*std.error),
+         Upper_CI = (estimate +1.96*std.error)) %>% 
+  select(term, estimate, std.error, Lower_CI, Upper_CI, statistic, p.value) %>%
+  kbl(caption= "Effect of Selected Predictors on insulin level"
+    , col.names   = c("Predictor", "Beta Estimate", "SE","Lower bound of 95% CI",
+                      "Upper bound of 95% CI","t-statistic", "p-value"),
+     digits= 6) %>%
+  kable_paper("striped", full_width = F) %>%
+  column_spec(1, bold = T)
+  
+```
+*Comments: With all the other variables held constant, if 1-unit changes in age, the beta estimate is -0.054 and its related 95% confidence interval from -0.156 to 0.048.*
